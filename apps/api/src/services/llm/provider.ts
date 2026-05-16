@@ -4,6 +4,7 @@ export interface LLMChatRequest {
   messages: ChatMessage[];
   cart: CartItem[];
   tools: LLMTool[];
+  disableTools?: boolean;
 }
 
 export interface LLMToolCall {
