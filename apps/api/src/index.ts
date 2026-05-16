@@ -16,8 +16,10 @@ app.use('/menu', menuRouter);
 app.use('/chat', chatRouter);
 app.use('/orders', ordersRouter);
 
-app.listen(PORT, () => {
-  console.log(`[bistro-api] listening on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`[bistro-api] listening on http://localhost:${PORT}`);
+  });
+}
 
 export { app };
