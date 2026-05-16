@@ -1,0 +1,30 @@
+{
+  "name": "intelligent-bistro",
+  "private": true,
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev:api": "pnpm --filter @bistro/api dev",
+    "dev:mobile": "pnpm --filter @bistro/mobile start",
+    "build:api": "pnpm --filter @bistro/api build",
+    "test": "pnpm --filter @bistro/api test --filter @bistro/mobile test",
+    "test:api": "pnpm --filter @bistro/api test",
+    "test:mobile": "pnpm --filter @bistro/mobile test",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.5"
+  }
+}

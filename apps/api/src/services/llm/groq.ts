@@ -1,20 +1,23 @@
 import OpenAI from 'openai';
-import { MENU } from '../../data/menu';
 import { LLMProvider, LLMChatRequest, LLMChatResponse } from './provider';
+import { executeTool } from '../tools';
+import { MENU } from '../../data/menu';
 
-const SYSTEM_PROMPT = `You are a warm, knowledgeable waiter at The Intelligent Bistro, an upscale Italian-Mediterranean restaurant.
+const MENU_CONTEXT = MENU.map(
+  (i) => `${i.id} | ${i.name} | £${(i.price / 100).toFixed(2)} | ${i.category}`
+).join('\n');
 
-Your job is to help guests order through natural conversation. You have access to the full menu and must use the provided tools to modify the cart — never invent items or prices.
+const SYSTEM_PROMPT = `You are a warm waiter at The Intelligent Bistro.
 
-Menu snapshot:
-${MENU.map((i) => `- ${i.name} (${i.id}): £${(i.price / 100).toFixed(2)} — ${i.description}`).join('\n')}
+MENU (use these exact IDs when calling tools):
+${MENU_CONTEXT}
 
 Rules:
-- Always confirm what you've added/removed/updated in your reply.
-- If a guest's request is ambiguous, ask ONE clarifying question.
-- Keep replies concise and warm — you're a waiter, not an essay writer.
-- Never mention tool names or technical details to the guest.
-- Prices are in pence internally; display as £ with two decimal places.`;
+- To add an item, call add_item with the exact itemId from the menu above. Do NOT call get_menu first.
+- You may call multiple tools in one turn for multiple items.
+- After tool calls complete, confirm what was added/removed in friendly plain language.
+- Never show tool names, item IDs, or JSON to the guest.
+- Prices in pence internally; display as £ with two decimal places.`;
 
 export class GroqProvider implements LLMProvider {
   private client: OpenAI;
@@ -29,13 +32,8 @@ export class GroqProvider implements LLMProvider {
   async chat(request: LLMChatRequest): Promise<LLMChatResponse> {
     const cartSummary =
       request.cart.length === 0
-        ? 'The cart is currently empty.'
-        : `Current cart:\n${request.cart
-            .map(
-              (i) =>
-                `- ${i.name} x${i.quantity}${i.customisation ? ` (${i.customisation})` : ''}: £${((i.unitPrice * i.quantity) / 100).toFixed(2)}`
-            )
-            .join('\n')}`;
+        ? 'Cart is currently empty.'
+        : `Cart: ${request.cart.map((i) => `${i.name} x${i.quantity}`).join(', ')}`;
 
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: `${SYSTEM_PROMPT}\n\n${cartSummary}` },
@@ -45,33 +43,83 @@ export class GroqProvider implements LLMProvider {
       })),
     ];
 
-    const tools: OpenAI.Chat.ChatCompletionTool[] = request.tools.map((t) => ({
-      type: 'function' as const,
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters,
-      },
-    }));
+    const tools: OpenAI.Chat.ChatCompletionTool[] = request.tools
+      .filter((t) => t.name !== 'get_menu')
+      .map((t) => ({
+        type: 'function' as const,
+        function: { name: t.name, description: t.description, parameters: t.parameters },
+      }));
 
-    const response = await this.client.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      tools,
-      tool_choice: 'auto',
-    });
+    const mergedToolCalls: LLMChatResponse['toolCalls'] = [];
+    let currentCart = [...request.cart];
 
-    const choice = response.choices[0];
-    const toolCalls =
-      choice.message.tool_calls?.map((tc) => ({
-        id: tc.id,
-        name: tc.function.name,
-        arguments: JSON.parse(tc.function.arguments) as Record<string, unknown>,
-      })) ?? [];
+    for (let i = 0; i < 5; i++) {
+      let choice: OpenAI.Chat.ChatCompletion['choices'][0];
 
-    return {
-      text: choice.message.content,
-      toolCalls,
-    };
+      try {
+        const response = await this.client.chat.completions.create({
+          model: 'llama-3.3-70b-versatile',
+          messages,
+          tools,
+          tool_choice: 'auto',
+        });
+        choice = response.choices[0];
+      } catch (err: unknown) {
+        const apiErr = err as { error?: { code?: string; failed_generation?: string } };
+        if (apiErr?.error?.code === 'tool_use_failed' && apiErr.error.failed_generation) {
+          const match = apiErr.error.failed_generation.match(
+            /<function=(\w+)\s*({.*?})<\/function>/s
+          );
+          if (match) {
+            const name = match[1];
+            const args = JSON.parse(match[2]) as Record<string, unknown>;
+            const fakeId = `recovered_${Date.now()}`;
+            const { toolResultContent, cartDiff } = executeTool(name, args, currentCart);
+            mergedToolCalls.push({ id: fakeId, name, arguments: args });
+            if (cartDiff.cleared) currentCart = [];
+            if (cartDiff.added) currentCart = [...currentCart, ...cartDiff.added];
+            if (cartDiff.removed)
+              currentCart = currentCart.filter((item) => !cartDiff.removed!.includes(item.itemId));
+            if (cartDiff.updated)
+              currentCart = currentCart.map((item) => {
+                const u = cartDiff.updated!.find((u) => u.itemId === item.itemId);
+                return u ?? item;
+              });
+            messages.push({ role: 'tool', tool_call_id: fakeId, content: toolResultContent });
+            continue;
+          }
+        }
+        throw err;
+      }
+
+      if (!choice.message.tool_calls || choice.message.tool_calls.length === 0) {
+        return { text: choice.message.content, toolCalls: mergedToolCalls };
+      }
+
+      messages.push({ role: 'assistant', content: null, tool_calls: choice.message.tool_calls });
+
+      for (const tc of choice.message.tool_calls) {
+        const args = tc.function.arguments
+          ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
+          : null;
+
+        const { toolResultContent, cartDiff } = executeTool(tc.function.name, args, currentCart);
+        mergedToolCalls.push({ id: tc.id, name: tc.function.name, arguments: args ?? {} });
+
+        if (cartDiff.cleared) currentCart = [];
+        if (cartDiff.added) currentCart = [...currentCart, ...cartDiff.added];
+        if (cartDiff.removed)
+          currentCart = currentCart.filter((item) => !cartDiff.removed!.includes(item.itemId));
+        if (cartDiff.updated)
+          currentCart = currentCart.map((item) => {
+            const u = cartDiff.updated!.find((u) => u.itemId === item.itemId);
+            return u ?? item;
+          });
+
+        messages.push({ role: 'tool', tool_call_id: tc.id, content: toolResultContent });
+      }
+    }
+
+    return { text: 'Done! Is there anything else?', toolCalls: mergedToolCalls };
   }
 }

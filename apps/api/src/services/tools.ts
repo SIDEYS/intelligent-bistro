@@ -89,12 +89,13 @@ export interface ToolResult {
 
 export function executeTool(
   name: string,
-  args: Record<string, unknown>,
+  args: Record<string, unknown> | null,
   currentCart: CartItem[]
 ): ToolResult {
+  const safeArgs = args ?? {};
   switch (name) {
     case 'add_item': {
-      const { itemId, quantity, customisation } = AddItemArgsSchema.parse(args);
+      const { itemId, quantity, customisation } = AddItemArgsSchema.parse(safeArgs);
       const menuItem = MENU.find((m) => m.id === itemId);
       if (!menuItem) {
         return { cartDiff: {}, toolResultContent: `Item ${itemId} not found on the menu.` };
@@ -113,7 +114,7 @@ export function executeTool(
     }
 
     case 'remove_item': {
-      const { itemId } = RemoveItemArgsSchema.parse(args);
+      const { itemId } = RemoveItemArgsSchema.parse(safeArgs);
       const exists = currentCart.some((i) => i.itemId === itemId);
       if (!exists) {
         return { cartDiff: {}, toolResultContent: `Item ${itemId} is not in the cart.` };
@@ -125,7 +126,7 @@ export function executeTool(
     }
 
     case 'update_item': {
-      const { itemId, quantity, customisation } = UpdateItemArgsSchema.parse(args);
+      const { itemId, quantity, customisation } = UpdateItemArgsSchema.parse(safeArgs);
       const existing = currentCart.find((i) => i.itemId === itemId);
       if (!existing) {
         return { cartDiff: {}, toolResultContent: `Item ${itemId} is not in the cart.` };
@@ -145,7 +146,7 @@ export function executeTool(
     }
 
     case 'get_menu': {
-      const { category } = GetMenuArgsSchema.parse(args);
+      const { category } = GetMenuArgsSchema.parse(safeArgs);
       const items = category ? MENU.filter((m) => m.category === category) : MENU;
       return {
         cartDiff: {},
