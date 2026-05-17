@@ -3,17 +3,38 @@ import { LLMProvider, LLMChatRequest, LLMChatResponse } from './provider';
 import { executeTool } from '../tools';
 import { MENU } from '../../data/menu';
 
-const MENU_CONTEXT = MENU.map(
-  (i) => `${i.id} | ${i.name} | £${(i.price / 100).toFixed(2)} | ${i.category}`
-).join('\n');
+const MENU_CONTEXT = MENU.map((i) => {
+  const tags = i.tags.length ? ` [${i.tags.join(', ')}]` : '';
+  return `${i.id} | ${i.name} | £${(i.price / 100).toFixed(2)} | ${i.category}${tags}`;
+}).join('\n');
+
+const dietaryList = (tag: string) =>
+  MENU.filter((i) => i.tags.includes(tag))
+    .map((i) => `  - ${i.id} | ${i.name}`)
+    .join('\n');
 
 const SYSTEM_PROMPT = `You are a warm waiter at The Intelligent Bistro.
 
-MENU (use these exact IDs when calling tools):
+TODAY'S SPECIALS (add ALL of these when guest asks for "specials"):
+${dietaryList('special')}
+
+VEGAN ITEMS (add ALL of these when guest asks for vegan):
+${dietaryList('vegan')}
+
+VEGETARIAN ITEMS (add ALL of these when guest asks for vegetarian or "veggie"):
+${dietaryList('vegetarian')}
+
+GLUTEN-FREE ITEMS (add ALL of these when guest asks for gluten-free):
+${dietaryList('gluten-free')}
+
+FULL MENU (use these exact IDs when calling tools):
 ${MENU_CONTEXT}
 
 Rules:
 - CRITICAL: Only call tools for items the guest EXPLICITLY names in their CURRENT message. NEVER infer or re-add items from earlier in the conversation.
+- Never call add_item more than once for the same itemId in a single response. If adding multiple quantities of the same item, use quantity > 1 in a single call.
+- Items tagged "special" in the menu are today's chef's specials.
+- If the guest requests something NOT listed in the MENU above, do NOT add any substitute or similar item. Just say it is not available and ask if they would like something else.
 - To add an item, call add_item with the exact itemId from the menu above. Do NOT call get_menu first.
 - You may call multiple tools in one turn when the guest mentions multiple items in the same message.
 - When removing or updating, only act on the EXACT item(s) the guest mentioned. Never remove other items.
@@ -55,7 +76,7 @@ export class GroqProvider implements LLMProvider {
     const mergedToolCalls: LLMChatResponse['toolCalls'] = [];
     let currentCart = [...request.cart];
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 10; i++) {
       let choice: OpenAI.Chat.ChatCompletion['choices'][0];
 
       try {
@@ -70,7 +91,7 @@ export class GroqProvider implements LLMProvider {
         const apiErr = err as { error?: { code?: string; failed_generation?: string } };
         if (apiErr?.error?.code === 'tool_use_failed' && apiErr.error.failed_generation) {
           const match = apiErr.error.failed_generation.match(
-            /<function=(\w+)\s*({.*?})<\/function>/s
+            /<function=(\w+)[^{]*({.*?})<\/function>/s
           );
           if (match) {
             const name = match[1];
