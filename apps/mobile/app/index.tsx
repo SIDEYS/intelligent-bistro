@@ -35,7 +35,6 @@ export default function ChatScreen() {
         messages: [...messages, userMessage],
         cart,
       });
-
       addMessage({ role: 'assistant', content: response.reply, timestamp: Date.now() });
       applyDiff(response.cartDiff);
     } catch {
