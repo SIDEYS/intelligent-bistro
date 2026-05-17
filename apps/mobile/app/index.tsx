@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Animated,
   StyleSheet,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useChatStore } from '../store/chatStore';
 import { useCartStore } from '../store/cartStore';
 import { api } from '../services/api';
@@ -82,8 +83,16 @@ function TypingIndicator() {
 export default function ChatScreen() {
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
+  const screenOpacity = useRef(new Animated.Value(0)).current;
   const { messages, isLoading, error, addMessage, setLoading, setError } = useChatStore();
   const { items: cart, applyDiff } = useCartStore();
+
+  useFocusEffect(
+    useCallback(() => {
+      screenOpacity.setValue(0);
+      Animated.timing(screenOpacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+    }, [])
+  );
 
   async function sendMessage() {
     const text = input.trim();
@@ -110,6 +119,7 @@ export default function ChatScreen() {
   }
 
   return (
+    <Animated.View style={{ flex: 1, opacity: screenOpacity }}>
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -163,6 +173,7 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
+    </Animated.View>
   );
 }
 

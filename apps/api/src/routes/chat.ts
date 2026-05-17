@@ -48,7 +48,17 @@ router.post('/', async (req, res) => {
       const { cartDiff } = executeTool(toolCall.name, toolCall.arguments as Record<string, unknown> | null, currentCart);
 
       if (cartDiff.cleared) { mergedDiff.cleared = true; currentCart = []; }
-      if (cartDiff.added) { mergedDiff.added = [...(mergedDiff.added ?? []), ...cartDiff.added]; currentCart = applyCartDiff(currentCart, { added: cartDiff.added }); }
+      if (cartDiff.added) {
+        for (const newItem of cartDiff.added) {
+          const existing = mergedDiff.added?.find((i) => i.itemId === newItem.itemId);
+          if (existing) {
+            existing.quantity += newItem.quantity;
+          } else {
+            mergedDiff.added = [...(mergedDiff.added ?? []), newItem];
+          }
+        }
+        currentCart = applyCartDiff(currentCart, { added: cartDiff.added });
+      }
       if (cartDiff.removed) { mergedDiff.removed = [...(mergedDiff.removed ?? []), ...cartDiff.removed]; currentCart = applyCartDiff(currentCart, { removed: cartDiff.removed }); }
       if (cartDiff.updated) { mergedDiff.updated = [...(mergedDiff.updated ?? []), ...cartDiff.updated]; currentCart = applyCartDiff(currentCart, { updated: cartDiff.updated }); }
     }

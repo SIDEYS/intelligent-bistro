@@ -31,7 +31,7 @@ export const MENU: MenuItem[] = [
     description: 'Thinly sliced raw beef fillet, capers, Parmigiano shavings, truffle oil.',
     price: 1495,
     category: 'starter',
-    tags: ['gluten-free'],
+    tags: ['gluten-free', 'special'],
   },
   {
     id: 'starter-05',
@@ -55,7 +55,7 @@ export const MENU: MenuItem[] = [
     description: 'Arborio rice, wild mushrooms, black truffle oil, aged Parmigiano.',
     price: 1895,
     category: 'main',
-    tags: ['vegetarian', 'gluten-free'],
+    tags: ['vegetarian', 'gluten-free', 'special'],
   },
   {
     id: 'main-03',
@@ -63,7 +63,7 @@ export const MENU: MenuItem[] = [
     description: 'Mediterranean sea bass fillet, capers, lemon butter, seasonal greens.',
     price: 2295,
     category: 'main',
-    tags: ['gluten-free'],
+    tags: ['gluten-free', 'special'],
   },
   {
     id: 'main-04',
@@ -127,7 +127,7 @@ export const MENU: MenuItem[] = [
     description: 'Warm dark chocolate fondant, molten centre, vanilla gelato.',
     price: 995,
     category: 'dessert',
-    tags: ['vegetarian'],
+    tags: ['vegetarian', 'special'],
   },
   {
     id: 'dessert-04',
