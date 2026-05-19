@@ -95,7 +95,11 @@ export function executeTool(
   const safeArgs = args ?? {};
   switch (name) {
     case 'add_item': {
-      const { itemId, quantity, customisation } = AddItemArgsSchema.parse(safeArgs);
+      const parsed = AddItemArgsSchema.safeParse(safeArgs);
+      if (!parsed.success) {
+        return { cartDiff: {}, toolResultContent: `Invalid add_item arguments: ${parsed.error.message}` };
+      }
+      const { itemId, quantity, customisation } = parsed.data;
       const menuItem = MENU.find((m) => m.id === itemId);
       if (!menuItem) {
         return { cartDiff: {}, toolResultContent: `Item ${itemId} not found on the menu.` };
@@ -126,7 +130,11 @@ export function executeTool(
     }
 
     case 'update_item': {
-      const { itemId, quantity, customisation } = UpdateItemArgsSchema.parse(safeArgs);
+      const parsed = UpdateItemArgsSchema.safeParse(safeArgs);
+      if (!parsed.success) {
+        return { cartDiff: {}, toolResultContent: `Invalid update_item arguments: ${parsed.error.message}` };
+      }
+      const { itemId, quantity, customisation } = parsed.data;
       const existing = currentCart.find((i) => i.itemId === itemId);
       if (!existing) {
         return { cartDiff: {}, toolResultContent: `Item ${itemId} is not in the cart.` };
