@@ -1,75 +1,91 @@
 # Devlog — Day 3
 
-**Date:** 2026-05-17  
-**Phase:** 2 — UI Polish & AI Robustness
+**Date:** 2026-05-19  
+**Phase:** 2 — UI Polish, Ollama Integration & LLM Cart Robustness
 
 ---
 
 ## What I Built Today
 
-### Savour Branding & Splash Screen
-- Full-screen animated splash: "Savour" in Georgia, gold tagline, fade-in + spring scale
-- Custom logo badge (gold rounded square + Utensils icon + "SAVOUR" / "AI DINING") applied to all three tab headers
-- Warm bistro palette: `#3C2A1E` (espresso), `#C9A84C` (gold), `#FAF7F2` (cream)
+### Ollama Offline Provider
+Introduced `OpenAICompatibleProvider` — an abstract base class that holds the full system prompt, 10-iteration agentic loop, tool call dispatch, and cart state injection logic. Both `GroqProvider` and the new `OllamaProvider` extend it with just a constructor supplying `baseURL`, `apiKey`, and `model`. The Groq subclass adds `legacyRecovery: true` for its `<function=name{}>` format quirk; Ollama needs nothing extra.
 
-### Animations
-- **Tab fade**: `useFocusEffect` + `Animated.timing` on every screen — opacity 0→1 on every tab switch
-- **Cart icon bounce**: `AnimatedCartIcon` springs to scale 1.4 then back whenever `cartCount` increases
-- **Menu + button pulse**: `Animated.spring` to 1.35 and back on press, triggering `addOne` in the cart store
-- **Typing indicator**: 3 gold pulsing dots with staggered `Animated.loop` for AI response wait state
+Switching providers: `LLM_PROVIDER=ollama` in the API `.env`. Documented in `.env.example`.
 
-### UI Controls
-- **Menu screen**: Add-to-cart (+) button on every `MenuCard`, in-cart quantity badge overlaid on the button
-- **Cart screen**: Per-row +/− quantity controls (`incrementItem`/`decrementItem`) and red ✕ remove button (`removeItem`)
-- New `cartStore` actions: `addOne`, `incrementItem`, `decrementItem`, `removeItem`
-- Fixed category pills from stretching vertically: replaced horizontal `FlatList` with `ScrollView` inside a fixed-height `<View style={{ height: 60 }}>`
+### Multi-Layer LLM Cart Integrity
+The LLM was exhibiting three distinct failure modes that each needed a separate fix:
 
-### Menu Expansion
-- Grew from 14 → 24 items: added Beef Carpaccio, Caesar Salad, Spaghetti Carbonara, Chicken Parmesan, Slow-cooked Lamb Shank, Chocolate Fondant, Crème Brûlée, Cappuccino, Aperol Spritz
-- Added `special` tag to 4 hero items (Beef Carpaccio, Truffle Mushroom Risotto, Grilled Sea Bass, Chocolate Fondant)
-- `TAG_COLOURS` map: special gets `#3C2A1E` background + `#C9A84C` text
+1. **Duplicate entries** — `applyCartDiff` on the server was blindly appending `diff.added` to the cart array. Changed to a merge-by-`itemId` loop that adds to `quantity` if the item already exists.
+2. **Double tool calls in one turn** — LLM would call `add_item` twice for the same `itemId` in a single agentic turn. Chat route now skips (not sums) any `itemId` already present in `mergedDiff.added` for that turn.
+3. **Re-adding on vague replies** — After "Yess" or "ok", the LLM would re-add items from earlier turns. Fixed with two guards: (a) the cart state is prepended to the last user message as a bracketed constraint (`[Cart already has: ... — do NOT add these again]`), and (b) the current cart state is appended to the last tool result after each iteration so the model sees it continuously.
 
-### LLM / AI Robustness
-- System prompt now embeds four explicit item lists: **TODAY'S SPECIALS**, **VEGAN ITEMS**, **VEGETARIAN ITEMS**, **GLUTEN-FREE ITEMS** (vegan and vegetarian kept separate — LLM was conflating them)
-- Each item line includes tags: `id | name | £price | category [tags]`
-- Added rules: never substitute unavailable items; never call `add_item` twice for same `itemId`; "veg/veggie = vegetarian, not vegan"
-- Deduplication in `chat.ts`: `mergedDiff.added` is de-duped by `itemId` before sending to client, combining quantities if same item appears twice
-- Increased agentic loop from 5 → 10 iterations to handle large "add all vegan items" orders (8 tool calls)
-- Fixed legacy tool call regex: `/<function=(\w+)\s*({.*?})<\/function>/s` → `/<function=(\w+)[^{]*({.*?})<\/function>/s` to handle `<function=add_item[]{"itemId":...}>` variant
+Also added `z.coerce.number()` on quantity fields in tool schemas — Ollama passes quantity as a string, which Zod would otherwise reject.
+
+### Premium UI Overhaul
+
+**Chat screen**
+- AI avatar (30×30 espresso circle with gold "S") beside every assistant bubble
+- Message timestamps below each bubble using `toLocaleTimeString`
+- 3-dot animated typing indicator with staggered `Animated.loop` while response is loading
+- Suggestion chips on empty state (`"I'd like a pizza"`, `"Show me vegan options"`, `"Surprise me"`) that populate the input on tap
+- Gold `#C9A84C55` focus ring on the input bar
+- Send button glows gold with shadow when input is non-empty
+
+**Menu screen**
+- `ITEM_EMOJI` map: every menu item gets a unique emoji in a rounded artwork box
+- Chef's Special items: full-width dark ribbon (`CHEF'S SPECIAL`), gold border on the card
+- Dietary tags redesigned: `🌱 Vegan`, `🥦 Veggie`, `🌾 GF` with colour-coded pill backgrounds
+- Price shown in a cream badge (`#FDF6E3`) at the card footer
+- In-cart quantity badge overlaid next to the add button
+
+**Cart screen**
+- Order Summary card: subtotal row, service charge row (10%), divider, total in large gold text
+- `OrderConfirmedModal` replaces `Alert.alert` — spring-animated card (scale 0.85→1 + fade) over a dark overlay, order ID badge, estimated wait badge, Done button
+- Bug fix: modal was never rendering because `clear()` triggered the `items.length === 0` early-return before `setOrderResult` could mount it. Fixed by guarding with `items.length === 0 && !orderResult`.
+
+**Layout**
+- Savour wordmark header (gold monogram badge + `SAVOUR` / `AI DINING` wordmark) across all tabs
+- Tab bar darkened to `#2A1D12`; `AnimatedCartIcon` springs to 1.4× when item is added
+- Full-screen splash on launch: fade-in + spring scale, auto-dismisses after 2.4 s
+
+### CHANGELOG.md
+Added `CHANGELOG.md` at repo root following Keep a Changelog format, covering all three phases.
 
 ---
 
 ## Decisions Made
 
-No new ADRs were needed — all architectural decisions (provider abstraction, tool calling, Zustand, expo-router) were already locked in Phase 1. The dietary grouping approach (explicit lists in system prompt vs. relying on the model's in-context reasoning) was validated empirically — the model consistently missed items when the list wasn't explicit.
+- **ADR 0005** — `OpenAICompatibleProvider` abstract base class (see `docs/adr/0005-openai-compatible-base-class.md`)
+- **ADR 0006** — Multi-layer LLM cart integrity (see `docs/adr/0006-multi-layer-cart-integrity.md`)
+
+The custom modal decision (replacing `Alert.alert`) was a UI call, not an architectural one — `Alert` is unthemeable and breaks the premium feel, so a custom `Modal` was the only viable path.
 
 ---
 
 ## Problems Hit + How I Solved Them
 
-- **LLM removing unmentioned items** — "remove the espresso" was also clearing pizza. Fixed with explicit rule: "only act on EXACT items mentioned in the current message."
-- **LLM re-ordering from history** — When user asked for pizza, model inferred espresso from earlier turns and added both. Fixed with CRITICAL rule: "never infer or re-add items from earlier messages."
-- **Truffle Risotto added twice** — Model called `add_item` twice for the same `itemId`. Fixed with deduplication in `chat.ts` + system prompt rule.
-- **Chocolate Fondant (special) not added** — Model didn't know it was a special. Fixed by embedding explicit TODAY'S SPECIALS list with all IDs.
-- **"Veg" adding vegan items** — Model conflated vegan and vegetarian. Fixed by keeping them as two separate lists and adding: "veg/veggie = vegetarian, not vegan."
-- **`BadRequestError: <function=add_item[]{"itemId":...}`** — Regex `\s*` couldn't match `[]` between function name and args. Fixed to `[^{]*` to skip any characters before the opening brace.
-- **Category pills stretching vertically** — `FlatList` with `horizontal` was expanding to fill screen height. Replaced with `ScrollView` inside `<View style={{ height: 60 }}>`.
-- **Tab fade not visible** — `animation: 'fade'` in `expo-router` screenOptions didn't fire reliably. Replaced with `useFocusEffect` + `Animated.timing` directly in each screen component.
-- **28 macOS duplicate files** — Finder created `* 2.ts` / `* 2.json` copies of every file in `apps/api/src`. Deleted with `rm -rf` and committed.
+| Problem | Root Cause | Fix |
+|---|---|---|
+| Ollama quantity as string | Zod `z.number()` rejects `"2"` | `z.coerce.number()` on all quantity fields |
+| Cart showing 4 pizzas (ordered 2) | `applyCartDiff` appended duplicates | Merge-by-`itemId` loop on server |
+| LLM calling `add_item` twice | Tool called twice in one agentic turn | Skip duplicate `itemId` in `mergedDiff.added` |
+| LLM re-adding pizza on "Yess" | Model inferred from chat history | Prepend cart state to last user message |
+| LLM miscounting items | No mid-loop cart feedback | Append "Cart now: …" to last tool result each iteration |
+| `OrderConfirmedModal` never shown | `clear()` triggered empty-cart early-return | Guard: `items.length === 0 && !orderResult` |
+| Logo on edge of header | `headerStyle.height: 80` too short | Bumped to `115` |
+| Phone can't reach API | Wrong LAN IP in `.env` | `ipconfig getifaddr en1` → `192.168.1.170` |
 
 ---
 
 ## Tomorrow's Plan
 
-- Ollama provider integration for offline use (swap via `LLM_PROVIDER=ollama`)
+- Day 4: tests, CI green check, EAS preview build
 - Deploy API to Railway or Render
-- EAS preview build (shareable iOS/Android link)
-- Write CHANGELOG.md
+- Record Loom walkthrough (most critical submission deliverable)
 
 ---
 
 ## Links to Commits & PRs
 
-- PR #14 (merged): https://github.com/SIDEYS/intelligent-bistro/pull/14 — LLM prompt robustness
-- PR #15 (merged): https://github.com/SIDEYS/intelligent-bistro/pull/15 — Savour branding, splash, animations, 24-item menu
-- PR #16 (merged): https://github.com/SIDEYS/intelligent-bistro/pull/16 — UI overhaul, cart controls, dietary AI groups
+- PR #17 (merged): https://github.com/SIDEYS/intelligent-bistro/pull/17 — Ollama provider + shared base class + LLM cart fixes
+- PR #18 (merged): https://github.com/SIDEYS/intelligent-bistro/pull/18 — Premium UI overhaul + OrderConfirmedModal + CHANGELOG
