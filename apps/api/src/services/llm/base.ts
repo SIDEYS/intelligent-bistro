@@ -145,6 +145,17 @@ export abstract class OpenAICompatibleProvider implements LLMProvider {
         currentCart = applyCartDiff(currentCart, cartDiff);
         messages.push({ role: 'tool', tool_call_id: tc.id, content: toolResultContent });
       }
+
+      // Append current cart state to the last tool result so the LLM counts accurately
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.role === 'tool') {
+        const cartState =
+          currentCart.length === 0
+            ? 'Cart is now empty.'
+            : `Cart now: ${currentCart.map((i) => `${i.name} x${i.quantity}`).join(', ')}`;
+        (lastMsg as { role: 'tool'; tool_call_id: string; content: string }).content +=
+          `\n${cartState}`;
+      }
     }
 
     return { text: 'Done! Is there anything else?', toolCalls: mergedToolCalls };
