@@ -34,7 +34,14 @@ function CartRow({ item, index }: { item: CartItem; index: number }) {
       <View style={styles.rowLeft}>
         <Text style={styles.itemName}>{item.name}</Text>
         {item.customisation ? <Text style={styles.itemNote}>{item.customisation}</Text> : null}
-        <Text style={styles.itemPrice}>£{((item.unitPrice * item.quantity) / 100).toFixed(2)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+          <Text style={styles.itemUnitPrice}>£{(item.unitPrice / 100).toFixed(2)}</Text>
+          {item.quantity > 1 && (
+            <Text style={styles.itemPriceTotal}>
+              × {item.quantity} = £{((item.unitPrice * item.quantity) / 100).toFixed(2)}
+            </Text>
+          )}
+        </View>
       </View>
 
       <View style={styles.rowRight}>
@@ -167,7 +174,8 @@ const styles = StyleSheet.create({
   rowLeft: { flex: 1, marginRight: 12 },
   itemName: { color: '#3C2A1E', fontWeight: '600', fontSize: 14, fontFamily: 'Georgia' },
   itemNote: { color: '#9CA3AF', fontSize: 12, marginTop: 2 },
-  itemPrice: { color: '#C9A84C', fontWeight: '700', fontSize: 14, marginTop: 4 },
+  itemUnitPrice: { color: '#C9A84C', fontWeight: '700', fontSize: 14 },
+  itemPriceTotal: { color: '#9CA3AF', fontSize: 13 },
 
   rowRight: { alignItems: 'flex-end', gap: 8 },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 10 },

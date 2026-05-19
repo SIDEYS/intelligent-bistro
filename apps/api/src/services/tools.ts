@@ -5,7 +5,7 @@ import { LLMTool } from './llm';
 
 const AddItemArgsSchema = z.object({
   itemId: z.string(),
-  quantity: z.number().int().positive(),
+  quantity: z.coerce.number().int().positive(),
   customisation: z.string().optional(),
 });
 
@@ -15,7 +15,7 @@ const RemoveItemArgsSchema = z.object({
 
 const UpdateItemArgsSchema = z.object({
   itemId: z.string(),
-  quantity: z.number().int().positive(),
+  quantity: z.coerce.number().int().positive(),
   customisation: z.string().optional(),
 });
 
