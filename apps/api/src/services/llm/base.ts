@@ -54,7 +54,16 @@ interface ProviderConfig {
 function applyCartDiff(cart: CartItem[], diff: ReturnType<typeof executeTool>['cartDiff']): CartItem[] {
   let result = [...cart];
   if (diff.cleared) result = [];
-  if (diff.added) result = [...result, ...diff.added];
+  if (diff.added) {
+    for (const newItem of diff.added) {
+      const idx = result.findIndex((i) => i.itemId === newItem.itemId);
+      if (idx >= 0) {
+        result[idx] = { ...result[idx], quantity: result[idx].quantity + newItem.quantity };
+      } else {
+        result.push(newItem);
+      }
+    }
+  }
   if (diff.removed) result = result.filter((item) => !diff.removed!.includes(item.itemId));
   if (diff.updated)
     result = result.map((item) => diff.updated!.find((u) => u.itemId === item.itemId) ?? item);
