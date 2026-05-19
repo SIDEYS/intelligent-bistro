@@ -33,6 +33,7 @@ ${MENU_CONTEXT}
 
 Rules:
 - CRITICAL: Only call tools for items the guest EXPLICITLY names in their CURRENT message. NEVER infer or re-add items from earlier in the conversation.
+- CRITICAL: Never call add_item for an item that is already in the cart unless the guest explicitly says "another", "one more", or specifies an additional quantity. A simple "yes" or confirmation only refers to what was just asked — never to items already in the cart.
 - Never call add_item more than once for the same itemId in a single response. If adding multiple quantities of the same item, use quantity > 1 in a single call.
 - Items tagged "special" in the menu are today's chef's specials.
 - If the guest requests something NOT listed in the MENU above, do NOT add any substitute or similar item. Just say it is not available and ask if they would like something else.
