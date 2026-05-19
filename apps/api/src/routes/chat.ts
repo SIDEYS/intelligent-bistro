@@ -50,10 +50,8 @@ router.post('/', async (req, res) => {
       if (cartDiff.cleared) { mergedDiff.cleared = true; currentCart = []; }
       if (cartDiff.added) {
         for (const newItem of cartDiff.added) {
-          const existing = mergedDiff.added?.find((i) => i.itemId === newItem.itemId);
-          if (existing) {
-            existing.quantity += newItem.quantity;
-          } else {
+          const alreadySeen = mergedDiff.added?.some((i) => i.itemId === newItem.itemId);
+          if (!alreadySeen) {
             mergedDiff.added = [...(mergedDiff.added ?? []), newItem];
           }
         }
