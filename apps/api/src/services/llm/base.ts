@@ -88,12 +88,27 @@ export abstract class OpenAICompatibleProvider implements LLMProvider {
         ? 'Cart is currently empty.'
         : `Cart: ${request.cart.map((i) => `${i.name} x${i.quantity}`).join(', ')}`;
 
+    const mappedMessages = request.messages.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }));
+
+    // Prepend cart state to the last user message so it's right in context when
+    // the model decides what to add — system prompt cart summary gets forgotten.
+    if (request.cart.length > 0 && mappedMessages.length > 0) {
+      const lastIdx = mappedMessages.length - 1;
+      if (mappedMessages[lastIdx].role === 'user') {
+        const cartItems = request.cart.map((i) => `${i.name} x${i.quantity}`).join(', ');
+        mappedMessages[lastIdx] = {
+          ...mappedMessages[lastIdx],
+          content: `[Cart already has: ${cartItems} — do NOT add these again unless I explicitly ask for more]\n\n${mappedMessages[lastIdx].content}`,
+        };
+      }
+    }
+
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: `${SYSTEM_PROMPT}\n\n${cartSummary}` },
-      ...request.messages.map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
+      ...mappedMessages,
     ];
 
     const tools: OpenAI.Chat.ChatCompletionTool[] = request.tools
