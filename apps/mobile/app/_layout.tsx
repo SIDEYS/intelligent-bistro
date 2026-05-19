@@ -104,8 +104,8 @@ export default function RootLayout() {
       screenOptions={{
         tabBarActiveTintColor: '#C9A84C',
         tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: { backgroundColor: '#3C2A1E', borderTopWidth: 0, paddingBottom: 4 },
-        headerStyle: { backgroundColor: '#3C2A1E' },
+        tabBarStyle: { backgroundColor: '#2A1D12', borderTopWidth: 0, paddingBottom: 4, elevation: 0 },
+        headerStyle: { backgroundColor: '#3C2A1E', height: 115 },
         headerTintColor: '#FAF7F2',
         headerTitleStyle: { fontWeight: '700', fontSize: 18, fontFamily: 'Georgia' },
       }}
